@@ -6,13 +6,14 @@ import { CartProvider } from "./context/cart-context"
 import { AuthProvider } from "./context/auth-context"
 import { ThemeProvider } from "./context/theme-context"
 import { SettingsProvider } from "./context/settings-context"
-import { Toaster } from "@/components/ui/sonner"
+import { Toaster } from "sonner"
+// import Header from "./components/header"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "HeroUI POS System",
-  description: "Professional Point of Sale System",
+  title: "Gestion de Stock - POS System",
+  description: "Système professionnel de gestion de stock et point de vente",
   generator: 'v0.app'
 }
 
@@ -22,13 +23,18 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning>
       <body className={`${inter.className} bg-background`}>
         <ThemeProvider>
           <AuthProvider>
             <SettingsProvider>
               <CartProvider>
-                {children}
+                <div className="min-h-screen flex flex-col">
+                  {/* <Header/> */}
+                  <main className="flex-1">
+                    {children}
+                  </main>
+                </div>
                 <Toaster position="top-right" richColors />
               </CartProvider>
             </SettingsProvider>

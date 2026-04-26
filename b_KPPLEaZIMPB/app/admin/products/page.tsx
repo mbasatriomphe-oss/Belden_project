@@ -1,9 +1,11 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
-import { Plus, Search, Filter, Edit, Trash2, Package, DollarSign, MoreHorizontal } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { 
+  Plus, Search, Filter, Edit, Trash2, Package, MoreHorizontal, Loader2, 
+  Upload, X, Eye, ShoppingCart, TrendingUp, AlertTriangle 
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,132 +15,251 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { db, type InventoryItem } from "../../services/database"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Progress } from "@/components/ui/progress"
+import { toast } from "sonner"
+import { produitsService, type Produit } from "@/lib/api-services/produits"
+import { categoriesService, type Categorie } from "@/lib/api-services/categories"
+import { unitesService, type Unite } from "@/lib/api-services/unites"
 
 interface ProductFormData {
-  name: string
-  price: number
-  cost: number
-  category: string
+  nom: string
+  categorie_id: number
+  unite_id: number
   description: string
-  stock: number
-  lowStockThreshold: number
-  supplier: string
-  image: string
 }
 
-const categories = ["food", "drinks", "desserts", "snacks", "beverages"]
-
 export default function ProductsPage() {
-  const [products, setProducts] = useState<InventoryItem[]>([])
-  const [filteredProducts, setFilteredProducts] = useState<InventoryItem[]>([])
+  const [produits, setProduits] = useState<Produit[]>([])
+  const [categories, setCategories] = useState<Categorie[]>([])
+  const [unites, setUnites] = useState<Unite[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState("all")
+  const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [showAddDialog, setShowAddDialog] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<InventoryItem | null>(null)
+  const [showViewDialog, setShowViewDialog] = useState(false)
+  const [showSupplyDialog, setShowSupplyDialog] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Produit | null>(null)
+  const [editingProduct, setEditingProduct] = useState<Produit | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [supplyQuantity, setSupplyQuantity] = useState(1)
+  const [supplyPrice, setSupplyPrice] = useState(0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const [formData, setFormData] = useState<ProductFormData>({
-    name: "",
-    price: 0,
-    cost: 0,
-    category: "",
+    nom: "",
+    categorie_id: 0,
+    unite_id: 0,
     description: "",
-    stock: 0,
-    lowStockThreshold: 5,
-    supplier: "",
-    image: "",
   })
 
   useEffect(() => {
-    loadProducts()
+    loadInitialData()
   }, [])
 
   useEffect(() => {
-    filterProducts()
-  }, [products, searchQuery, selectedCategory])
+    loadProduits()
+  }, [searchQuery, selectedCategory])
 
-  const loadProducts = async () => {
-    const inventory = await db.getInventory()
-    setProducts(inventory)
+  const loadInitialData = async () => {
+    try {
+      setIsLoading(true)
+      const [cats, units] = await Promise.all([
+        categoriesService.getAll(),
+        unitesService.getAll()
+      ])
+      setCategories(cats || [])
+      setUnites(units || [])
+      await loadProduits()
+    } catch (error) {
+      console.error("Erreur chargement données:", error)
+      toast.error("Erreur", {
+        description: "Impossible de charger les données initiales",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const filterProducts = () => {
-    let filtered = products
-
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (product) =>
-          product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          product.supplier.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
+  const loadProduits = async () => {
+    try {
+      const params: { search?: string; categorie_id?: number; per_page: number } = {
+        per_page: 100
+      }
+      
+      if (searchQuery) params.search = searchQuery
+      if (selectedCategory !== "all") params.categorie_id = parseInt(selectedCategory)
+      
+      const response = await produitsService.getAll(params)
+      setProduits(response.data || [])
+    } catch (error) {
+      console.error("Erreur chargement produits:", error)
+      toast.error("Erreur", { description: "Impossible de charger les produits" })
+      setProduits([])
     }
+  }
 
-    if (selectedCategory !== "all") {
-      filtered = filtered.filter((product) => product.category === selectedCategory)
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setSelectedImage(file)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
     }
+  }
 
-    setFilteredProducts(filtered)
+  const removeImage = () => {
+    setSelectedImage(null)
+    setImagePreview(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    const productData: InventoryItem = {
-      id: editingProduct?.id || Date.now(),
-      ...formData,
-      lastRestocked: new Date(),
+    
+    if (!formData.nom.trim()) {
+      toast.error("Erreur", { description: "Le nom du produit est requis" })
+      return
+    }
+    
+    if (formData.categorie_id === 0) {
+      toast.error("Erreur", { description: "Veuillez sélectionner une catégorie" })
+      return
+    }
+    
+    if (formData.unite_id === 0) {
+      toast.error("Erreur", { description: "Veuillez sélectionner une unité" })
+      return
     }
 
-    let updatedProducts
-    if (editingProduct) {
-      updatedProducts = products.map((p) => (p.id === editingProduct.id ? productData : p))
-    } else {
-      updatedProducts = [...products, productData]
-    }
+    try {
+      setIsSubmitting(true)
+      const formDataToSend = new FormData()
+      formDataToSend.append('nom', formData.nom)
+      formDataToSend.append('description', formData.description)
+      formDataToSend.append('categorie_id', formData.categorie_id.toString())
+      formDataToSend.append('unite_id', formData.unite_id.toString())
+      
+      if (selectedImage) {
+        formDataToSend.append('photo', selectedImage)
+      }
 
-    await db.saveInventory(updatedProducts)
-    setProducts(updatedProducts)
-    resetForm()
+      let result: Produit | null = null
+
+      if (editingProduct) {
+        formDataToSend.append('_method', 'PUT')
+        result = await produitsService.updateWithImage(editingProduct.id, formDataToSend)
+        if (result) {
+          toast.success("Succès", { description: "Produit modifié avec succès" })
+        }
+      } else {
+        result = await produitsService.createWithImage(formDataToSend)
+        if (result) {
+          toast.success("Succès", { description: "Produit ajouté avec succès" })
+        }
+      }
+      
+      if (result) {
+        loadProduits()
+        resetForm()
+        setShowAddDialog(false)
+      } else {
+        toast.error("Erreur", { description: "Impossible de sauvegarder le produit" })
+      }
+    } catch (error) {
+      console.error("Erreur sauvegarde:", error)
+      toast.error("Erreur", { description: "Une erreur est survenue" })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  const handleEdit = (product: InventoryItem) => {
+  const handleView = (product: Produit) => {
+    setSelectedProduct(product)
+    setShowViewDialog(true)
+  }
+
+  const handleSupply = (product: Produit) => {
+    setSelectedProduct(product)
+    setSupplyQuantity(1)
+    setSupplyPrice(product.prix_achat_moyen || 0)
+    setShowSupplyDialog(true)
+  }
+
+  const handleSupplySubmit = async () => {
+    if (!selectedProduct) return
+    
+    toast.success("Approvisionnement", {
+      description: `${supplyQuantity} ${selectedProduct.unite?.nom} ajoutés au stock`
+    })
+    setShowSupplyDialog(false)
+    loadProduits()
+  }
+
+  const handleEdit = (product: Produit) => {
     setEditingProduct(product)
     setFormData({
-      name: product.name,
-      price: product.price,
-      cost: product.cost,
-      category: product.category,
-      description: "",
-      stock: product.stock,
-      lowStockThreshold: product.lowStockThreshold,
-      supplier: product.supplier,
-      image: product.image,
+      nom: product.nom,
+      categorie_id: product.categorie_id,
+      unite_id: product.unite_id,
+      description: product.description || "",
     })
+    if (product.photo) {
+      setImagePreview(product.photo)
+    }
     setShowAddDialog(true)
   }
 
-  const handleDelete = async (productId: number) => {
-    if (confirm("Are you sure you want to delete this product?")) {
-      const updatedProducts = products.filter((p) => p.id !== productId)
-      await db.saveInventory(updatedProducts)
-      setProducts(updatedProducts)
+  const handleDelete = async (productId: number, productName: string) => {
+    if (confirm(`Supprimer le produit "${productName}" ?`)) {
+      try {
+        const success = await produitsService.delete(productId)
+        if (success) {
+          toast.success("Succès", { description: "Produit supprimé avec succès" })
+          loadProduits()
+        }
+      } catch (error) {
+        console.error("Erreur suppression:", error)
+        toast.error("Erreur", { description: "Impossible de supprimer le produit" })
+      }
     }
   }
 
   const resetForm = () => {
     setFormData({
-      name: "",
-      price: 0,
-      cost: 0,
-      category: "",
+      nom: "",
+      categorie_id: 0,
+      unite_id: 0,
       description: "",
-      stock: 0,
-      lowStockThreshold: 5,
-      supplier: "",
-      image: "",
     })
+    setSelectedImage(null)
+    setImagePreview(null)
     setEditingProduct(null)
-    setShowAddDialog(false)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const getStockStatus = (stock: number) => {
+    if (stock <= 0) return { label: "Rupture", variant: "destructive", icon: AlertTriangle }
+    if (stock <= 10) return { label: "Stock faible", variant: "warning", icon: AlertTriangle }
+    return { label: "En stock", variant: "success", icon: Package }
+  }
+
+  if (isLoading && produits.length === 0) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+      </div>
+    )
   }
 
   return (
@@ -146,44 +267,44 @@ export default function ProductsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold">Products</h1>
-          <p className="text-muted-foreground">Manage your product catalog</p>
+          <h1 className="text-2xl lg:text-3xl font-bold">Produits</h1>
+          <p className="text-muted-foreground">Gérez votre catalogue de produits</p>
         </div>
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
           <DialogTrigger asChild>
             <Button onClick={() => resetForm()}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Product
+              Ajouter un produit
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
+              <DialogTitle>{editingProduct ? "Modifier le produit" : "Ajouter un nouveau produit"}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="name">Product Name *</Label>
+                  <Label htmlFor="nom">Nom du produit *</Label>
                   <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    id="nom"
+                    value={formData.nom}
+                    onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
                     required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="category">Category *</Label>
+                  <Label htmlFor="categorie_id">Catégorie *</Label>
                   <Select
-                    value={formData.category}
-                    onValueChange={(value) => setFormData({ ...formData, category: value })}
+                    value={formData.categorie_id.toString()}
+                    onValueChange={(value) => setFormData({ ...formData, categorie_id: parseInt(value) })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
+                      <SelectValue placeholder="Sélectionner une catégorie" />
                     </SelectTrigger>
                     <SelectContent>
                       {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                        <SelectItem key={cat.id} value={cat.id.toString()}>
+                          {cat.nom}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -193,68 +314,64 @@ export default function ProductsPage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="price">Selling Price *</Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: Number.parseFloat(e.target.value) || 0 })}
-                    required
-                  />
+                  <Label htmlFor="unite_id">Unité *</Label>
+                  <Select
+                    value={formData.unite_id.toString()}
+                    onValueChange={(value) => setFormData({ ...formData, unite_id: parseInt(value) })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner une unité" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {unites.map((unit) => (
+                        <SelectItem key={unit.id} value={unit.id.toString()}>
+                          {unit.nom} ({unit.abreviation})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <Label htmlFor="cost">Cost Price</Label>
-                  <Input
-                    id="cost"
-                    type="number"
-                    step="0.01"
-                    value={formData.cost}
-                    onChange={(e) => setFormData({ ...formData, cost: Number.parseFloat(e.target.value) || 0 })}
-                  />
+                  <Label>Image du produit</Label>
+                  <div className="mt-2">
+                    {imagePreview ? (
+                      <div className="relative inline-block">
+                        <img
+                          src={imagePreview}
+                          alt="Aperçu"
+                          className="w-32 h-32 rounded-lg object-cover border"
+                        />
+                        <button
+                          type="button"
+                          onClick={removeImage}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-emerald-500 transition-colors"
+                      >
+                        <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">
+                          Cliquez pour sélectionner une image
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          PNG, JPG, JPEG, GIF, WEBP (max 2MB)
+                        </p>
+                      </div>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                  </div>
                 </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="stock">Stock Quantity</Label>
-                  <Input
-                    id="stock"
-                    type="number"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: Number.parseInt(e.target.value) || 0 })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="lowStockThreshold">Low Stock Threshold</Label>
-                  <Input
-                    id="lowStockThreshold"
-                    type="number"
-                    value={formData.lowStockThreshold}
-                    onChange={(e) =>
-                      setFormData({ ...formData, lowStockThreshold: Number.parseInt(e.target.value) || 5 })
-                    }
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="supplier">Supplier</Label>
-                <Input
-                  id="supplier"
-                  value={formData.supplier}
-                  onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="image">Image URL</Label>
-                <Input
-                  id="image"
-                  value={formData.image}
-                  onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                  placeholder="https://example.com/image.jpg"
-                />
               </div>
 
               <div>
@@ -268,9 +385,18 @@ export default function ProductsPage() {
               </div>
 
               <div className="flex gap-2 pt-4">
-                <Button type="submit">{editingProduct ? "Update Product" : "Add Product"}</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {editingProduct ? "Modification..." : "Ajout..."}
+                    </>
+                  ) : (
+                    editingProduct ? "Modifier" : "Ajouter"
+                  )}
+                </Button>
                 <Button type="button" variant="outline" onClick={resetForm}>
-                  Cancel
+                  Annuler
                 </Button>
               </div>
             </form>
@@ -285,7 +411,7 @@ export default function ProductsPage() {
             <div className="relative flex-1">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search products..."
+                placeholder="Rechercher des produits..."
                 className="pl-8"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -294,13 +420,13 @@ export default function ProductsPage() {
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
               <SelectTrigger className="w-full sm:w-48">
                 <Filter className="h-4 w-4 mr-2" />
-                <SelectValue />
+                <SelectValue placeholder="Toutes les catégories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="all">Toutes les catégories</SelectItem>
                 {categories.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                  <SelectItem key={cat.id} value={cat.id.toString()}>
+                    {cat.nom}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -309,80 +435,291 @@ export default function ProductsPage() {
         </CardContent>
       </Card>
 
-      {/* Products Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {filteredProducts.map((product) => (
-          <Card key={product.id} className="overflow-hidden">
-            <div className="aspect-square relative">
-              <img
-                src={product.image || "/placeholder.svg"}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute top-2 right-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="secondary" size="icon" className="h-8 w-8">
-                      <MoreHorizontal className="h-4 w-4" />
+      {/* Products Table */}
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[80px]">Image</TableHead>
+                <TableHead>Nom</TableHead>
+                <TableHead>Catégorie</TableHead>
+                <TableHead>Unité</TableHead>
+                <TableHead className="text-right">Stock</TableHead>
+                <TableHead className="text-right">Prix vente</TableHead>
+                <TableHead className="text-right">Marge</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {produits.length > 0 ? (
+                produits.map((product) => {
+                  const stockStatus = getStockStatus(product.stock_actuel || 0)
+                  return (
+                    <TableRow key={product.id}>
+                      <TableCell>
+                        {product.photo ? (
+                          <img
+                            src={product.photo}
+                            alt={product.nom}
+                            className="w-10 h-10 rounded-lg object-cover"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                            <Package className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium">{product.nom}</TableCell>
+                      <TableCell>{product.categorie?.nom || "-"}</TableCell>
+                      <TableCell>{product.unite?.nom || "-"}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className={`font-medium ${
+                            product.stock_actuel <= 10 ? "text-red-600" : "text-green-600"
+                          }`}>
+                            {product.stock_actuel || 0}
+                          </span>
+                          {product.stock_actuel <= 10 && product.stock_actuel > 0 && (
+                            <Progress value={(product.stock_actuel / 20) * 100} className="w-16 h-2" />
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {product.prix_vente_actuel?.toFixed(2) || 0} $
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant={product.marge_brute && product.marge_brute > 30 ? "default" : "secondary"}>
+                          {product.marge_brute?.toFixed(0) || 0}%
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleView(product)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleSupply(product)}
+                          >
+                            <ShoppingCart className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleEdit(product)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-600"
+                            onClick={() => handleDelete(product.id, product.nom)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={8} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <Package className="h-8 w-8 text-muted-foreground mb-2" />
+                      <p className="text-muted-foreground">Aucun produit trouvé</p>
+                      <Button variant="link" onClick={() => setShowAddDialog(true)}>
+                        Ajouter votre premier produit
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* View Product Dialog */}
+      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Détails du produit</DialogTitle>
+          </DialogHeader>
+          {selectedProduct && (
+            <div className="space-y-4">
+              <div className="flex gap-4">
+                {selectedProduct.photo ? (
+                  <img
+                    src={selectedProduct.photo}
+                    alt={selectedProduct.nom}
+                    className="w-32 h-32 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div className="w-32 h-32 rounded-lg bg-muted flex items-center justify-center">
+                    <Package className="h-12 w-12 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold">{selectedProduct.nom}</h3>
+                  <p className="text-muted-foreground">SKU: {selectedProduct.sku || "Généré automatiquement"}</p>
+                  <div className="mt-2 flex gap-2">
+                    <Badge>{selectedProduct.categorie?.nom}</Badge>
+                    <Badge variant="outline">{selectedProduct.unite?.nom}</Badge>
+                  </div>
+                </div>
+              </div>
+
+              <Tabs defaultValue="details" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="details">Détails</TabsTrigger>
+                  <TabsTrigger value="stock">Stock</TabsTrigger>
+                  <TabsTrigger value="financial">Financier</TabsTrigger>
+                </TabsList>
+                <TabsContent value="details" className="space-y-2">
+                  <p className="text-sm">{selectedProduct.description || "Aucune description"}</p>
+                </TabsContent>
+                <TabsContent value="stock" className="space-y-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-muted rounded-lg">
+                      <p className="text-sm text-muted-foreground">Stock actuel</p>
+                      <p className="text-2xl font-bold">{selectedProduct.stock_actuel || 0}</p>
+                    </div>
+                    <div className="p-3 bg-muted rounded-lg">
+                      <p className="text-sm text-muted-foreground">Statut</p>
+                      <Badge variant={selectedProduct.stock_actuel && selectedProduct.stock_actuel > 0 ? "default" : "destructive"}>
+                        {selectedProduct.stock_actuel && selectedProduct.stock_actuel > 0 ? "En stock" : "Rupture"}
+                      </Badge>
+                    </div>
+                  </div>
+                </TabsContent>
+                <TabsContent value="financial" className="space-y-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-muted rounded-lg">
+                      <p className="text-sm text-muted-foreground">Prix d'achat moyen</p>
+                      <p className="text-2xl font-bold">{selectedProduct.prix_achat_moyen?.toFixed(2) || 0} $</p>
+                    </div>
+                    <div className="p-3 bg-muted rounded-lg">
+                      <p className="text-sm text-muted-foreground">Prix de vente</p>
+                      <p className="text-2xl font-bold text-green-600">{selectedProduct.prix_vente_actuel?.toFixed(2) || 0} $</p>
+                    </div>
+                    <div className="p-3 bg-muted rounded-lg">
+                      <p className="text-sm text-muted-foreground">Marge brute</p>
+                      <p className="text-xl font-bold">{selectedProduct.marge_brute?.toFixed(0) || 0}%</p>
+                    </div>
+                    <div className="p-3 bg-muted rounded-lg">
+                      <p className="text-sm text-muted-foreground">Bénéfice unitaire</p>
+                      <p className="text-xl font-bold">
+                        {((selectedProduct.prix_vente_actuel || 0) - (selectedProduct.prix_achat_moyen || 0)).toFixed(2)} $
+                      </p>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Supply Dialog */}
+      <Dialog open={showSupplyDialog} onOpenChange={setShowSupplyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approvisionnement</DialogTitle>
+          </DialogHeader>
+          {selectedProduct && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                {selectedProduct.photo ? (
+                  <img
+                    src={selectedProduct.photo}
+                    alt={selectedProduct.nom}
+                    className="w-16 h-16 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
+                    <Package className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-semibold">{selectedProduct.nom}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Stock actuel: {selectedProduct.stock_actuel || 0} {selectedProduct.unite?.nom}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4">
+                <div>
+                  <Label htmlFor="quantity">Quantité à ajouter</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setSupplyQuantity(Math.max(1, supplyQuantity - 1))}
+                    >
+                      -
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleEdit(product)}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDelete(product.id)} className="text-red-600">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      value={supplyQuantity}
+                      onChange={(e) => setSupplyQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="text-center"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setSupplyQuantity(supplyQuantity + 1)}
+                    >
+                      +
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="price">Prix d'achat unitaire ($)</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    step="0.01"
+                    value={supplyPrice}
+                    onChange={(e) => setSupplyPrice(parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+
+                <div className="p-3 bg-muted rounded-lg">
+                  <div className="flex justify-between">
+                    <span>Total</span>
+                    <span className="font-bold">{(supplyQuantity * supplyPrice).toFixed(2)} $</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <Button onClick={handleSupplySubmit} className="flex-1">
+                  Confirmer l'approvisionnement
+                </Button>
+                <Button variant="outline" onClick={() => setShowSupplyDialog(false)}>
+                  Annuler
+                </Button>
               </div>
             </div>
-            <CardContent className="p-4">
-              <div className="space-y-2">
-                <div className="flex items-start justify-between">
-                  <h3 className="font-medium line-clamp-1">{product.name}</h3>
-                  <Badge variant={product.stock <= product.lowStockThreshold ? "destructive" : "secondary"}>
-                    {product.stock}
-                  </Badge>
-                </div>
-                <p className="text-sm text-muted-foreground capitalize">{product.category}</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <DollarSign className="h-3 w-3 text-green-600" />
-                    <span className="font-medium text-green-600">${product.price.toFixed(2)}</span>
-                  </div>
-                  {product.cost > 0 && (
-                    <div className="text-xs text-muted-foreground">
-                      Margin: {(((product.price - product.cost) / product.price) * 100).toFixed(0)}%
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">{product.supplier}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {filteredProducts.length === 0 && (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="font-medium mb-2">No products found</h3>
-            <p className="text-muted-foreground mb-4">
-              {searchQuery || selectedCategory !== "all"
-                ? "Try adjusting your search or filters"
-                : "Get started by adding your first product"}
-            </p>
-            <Button onClick={() => setShowAddDialog(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Product
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

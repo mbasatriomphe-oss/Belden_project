@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { productService, Product, PaginatedResponse } from '@/lib/api-services/products';
+import { productService, Product, PaginatedResponse } from '@/lib/api-services/produits';
 
 interface UseProductsOptions {
   page?: number;

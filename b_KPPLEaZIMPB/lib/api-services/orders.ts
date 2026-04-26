@@ -1,5 +1,5 @@
 import { apiClient } from '../api-client';
-import { PaginatedResponse, PaginationMeta } from './products';
+import { PaginatedResponse, PaginationMeta } from './produits';
 
 export interface Client {
   id: number;
