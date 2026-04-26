@@ -8,6 +8,10 @@ interface ApiResponse<T = any> {
   user?: T;
   message?: string;
   error?: string;
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
 }
 
 class ApiClient {
@@ -107,9 +111,19 @@ class ApiClient {
             window.location.href = '/login';
           }
         }
+        
+        // Gérer les erreurs de validation Laravel (422)
+        if (response.status === 422 && responseData && responseData.errors) {
+          const errorMessages = Object.values(responseData.errors).flat().join(', ');
+          return {
+            success: false,
+            error: errorMessages || 'Erreur de validation',
+          };
+        }
+        
         return {
           success: false,
-          error: responseData?.message || `Erreur HTTP ${response.status}`,
+          error: responseData?.message || responseData?.error || `Erreur HTTP ${response.status}`,
         };
       }
 
@@ -118,10 +132,24 @@ class ApiClient {
         return { success: true };
       }
 
+      // Si la réponse a déjà une propriété 'success', la retourner telle quelle
       if (responseData.hasOwnProperty('success')) {
         return responseData;
       }
 
+      // Pour les réponses paginées de Laravel
+      if (responseData.hasOwnProperty('data') && Array.isArray(responseData.data)) {
+        return {
+          success: true,
+          data: responseData.data,
+          current_page: responseData.current_page,
+          last_page: responseData.last_page,
+          per_page: responseData.per_page,
+          total: responseData.total,
+        };
+      }
+
+      // Pour les réponses simples
       return {
         success: true,
         data: responseData,

@@ -78,19 +78,25 @@ export default function ClientsPage() {
   const loadClients = async () => {
     try {
       setIsLoading(true)
-      console.log("Chargement des clients...")
       
       const response = await clientsService.getAll({
         per_page: 100
       })
       
-      console.log("Réponse reçue:", response)
+      console.log('API Response:', response) // Debug
       
+      // Vérifier la structure de la réponse
       if (response && response.data && Array.isArray(response.data)) {
-        console.log(`${response.data.length} clients chargés`)
+        console.log('Clients chargés:', response.data.length)
         setClients(response.data)
+        
+        if (response.data.length === 0) {
+          toast.info("Aucun client trouvé", {
+            description: "Ajoutez votre premier client",
+          })
+        }
       } else {
-        console.log("Aucun client trouvé ou format incorrect")
+        console.error('Structure de réponse invalide:', response)
         setClients([])
       }
     } catch (error) {
@@ -196,42 +202,38 @@ export default function ClientsPage() {
       setIsSubmitting(true)
 
       if (editingClient) {
-        // Mise à jour
         const updated = await clientsService.update(editingClient.id, formData)
         if (updated) {
-          setClients(prev => prev.map(c => c.id === editingClient.id ? updated : c))
           toast.success("Client modifié avec succès", {
             description: `${updated.nom} a été mis à jour`,
           })
           resetForm()
           setShowAddDialog(false)
-          loadClients()
+          await loadClients() // Recharger après modification
         } else {
           toast.error("Erreur", {
             description: "Impossible de modifier le client",
           })
         }
       } else {
-        // Création
         const newClient = await clientsService.create(formData)
         if (newClient) {
-          setClients(prev => [...prev, newClient])
-          toast.success(`Client enregistré avec succès !`, {
+          toast.success("Client enregistré avec succès !", {
             description: `${newClient.nom} a été ajouté à la base de données`,
           })
           resetForm()
           setShowAddDialog(false)
-          loadClients()
+          await loadClients() // Recharger après ajout
         } else {
           toast.error("Erreur d'enregistrement", {
             description: "Vérifiez les informations du client",
           })
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erreur sauvegarde:", error)
       toast.error("Erreur", {
-        description: "Une erreur est survenue lors de l'enregistrement",
+        description: error.message || "Une erreur est survenue lors de l'enregistrement",
       })
     } finally {
       setIsSubmitting(false)
@@ -250,31 +252,25 @@ export default function ClientsPage() {
   }
 
   const handleDelete = async (clientId: number, clientName: string) => {
-    toast.warning("Confirmation", {
-      description: `Voulez-vous vraiment supprimer "${clientName}" ?`,
-      action: {
-        label: "Supprimer",
-        onClick: async () => {
-          try {
-            const success = await clientsService.delete(clientId)
-            if (success) {
-              setClients(prev => prev.filter((c) => c.id !== clientId))
-              toast.success("Client supprimé", {
-                description: `${clientName} a été supprimé`,
-              })
-              loadClients()
-            }
-          } catch (error) {
-            toast.error("Erreur", {
-              description: "Impossible de supprimer le client",
-            })
-          }
-        },
-      },
-      cancel: {
-        label: "Annuler",
-      },
-    })
+    if (confirm(`Supprimer le client "${clientName}" ?`)) {
+      try {
+        const success = await clientsService.delete(clientId)
+        if (success) {
+          toast.success("Client supprimé", {
+            description: `${clientName} a été supprimé`,
+          })
+          await loadClients() // Recharger après suppression
+        } else {
+          toast.error("Erreur", {
+            description: "Impossible de supprimer le client",
+          })
+        }
+      } catch (error) {
+        toast.error("Erreur", {
+          description: "Impossible de supprimer le client",
+        })
+      }
+    }
   }
 
   const resetForm = () => {
@@ -301,7 +297,7 @@ export default function ClientsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Header - same as before */}
       <div className="sticky top-0 z-10 bg-card border-b">
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-4">
@@ -481,7 +477,6 @@ export default function ClientsPage() {
                 variant="outline"
                 size="icon"
                 onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                className="shrink-0"
               >
                 <ArrowUpDown className={`h-4 w-4 transition-transform ${sortOrder === "asc" ? "rotate-180" : ""}`} />
               </Button>
@@ -617,4 +612,4 @@ export default function ClientsPage() {
       </Dialog>
     </div>
   )
-}
+} 
