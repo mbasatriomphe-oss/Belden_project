@@ -20,7 +20,6 @@ export interface Produit {
         nom: string;
         abreviation: string;
     };
-    // Champs calculés (fournis par l'API)
     prix_achat_moyen?: number;
     prix_vente_actuel?: number;
     stock_actuel?: number;
@@ -41,6 +40,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 export const produitsService = {
     async getAll(params?: { search?: string; categorie_id?: number; per_page?: number; page?: number }): Promise<PaginatedResponse> {
         let url = `${API_URL}/produits`;
+        
         if (params) {
             const queryParams = new URLSearchParams();
             if (params.search) queryParams.append('search', params.search);
@@ -52,28 +52,57 @@ export const produitsService = {
         
         const token = apiClient.getToken();
         
+        // Vérifier si le token existe
+        if (!token) {
+            console.error("Token d'authentification manquant");
+            return { data: [], current_page: 1, last_page: 1, per_page: 15, total: 0 };
+        }
+        
         try {
+            console.log("Fetching products from:", url);
+            
             const response = await fetch(url, {
+                method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Accept': 'application/json',
+                    'Content-Type': 'application/json',
                 },
             });
             
-            const data = await response.json();
+            console.log("Response status:", response.status);
             
-            if (response.ok) {
+            if (!response.ok) {
+                console.error("Erreur HTTP:", response.status);
+                return { data: [], current_page: 1, last_page: 1, per_page: 15, total: 0 };
+            }
+            
+            const data = await response.json();
+            console.log("Données reçues:", data);
+            
+            // Gérer différents formats de réponse
+            if (data.data && Array.isArray(data.data)) {
                 return data;
             }
+            
+            if (Array.isArray(data)) {
+                return { data, current_page: 1, last_page: 1, per_page: data.length, total: data.length };
+            }
+            
             return { data: [], current_page: 1, last_page: 1, per_page: 15, total: 0 };
         } catch (error) {
-            console.error("Erreur getAll:", error);
+            console.error("Erreur détaillée getAll:", error);
             return { data: [], current_page: 1, last_page: 1, per_page: 15, total: 0 };
         }
     },
 
     async createWithImage(formData: FormData): Promise<Produit | null> {
         const token = apiClient.getToken();
+        
+        if (!token) {
+            console.error("Token manquant");
+            return null;
+        }
         
         try {
             const response = await fetch(`${API_URL}/produits`, {
@@ -98,6 +127,12 @@ export const produitsService = {
 
     async updateWithImage(id: number, formData: FormData): Promise<Produit | null> {
         const token = apiClient.getToken();
+        
+        if (!token) {
+            console.error("Token manquant");
+            return null;
+        }
+        
         formData.append('_method', 'PUT');
         
         try {

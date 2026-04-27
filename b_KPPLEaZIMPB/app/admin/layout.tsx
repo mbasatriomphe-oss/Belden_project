@@ -19,6 +19,7 @@ import {
   Moon,
   PackagePlus,
   FileSpreadsheet,
+  Truck,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -28,18 +29,18 @@ import { useTheme } from "../context/theme-context"
 
 const navigation = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { name: "unités", href: "/admin/unites", icon: LayoutDashboard },
+  { name: "Unités", href: "/admin/unites", icon: LayoutDashboard },
   { name: "Produits", href: "/admin/products", icon: Package },
-  { name: "Categories", href: "/admin/categories", icon: Package },
+  { name: "Catégories", href: "/admin/categories", icon: Package },
   { name: "Commandes", href: "/admin/orders", icon: ShoppingCart },
   { name: "Clients", href: "/admin/clients", icon: Users },
-  { name: "Approvisionner", href: "/admin/restocking", icon: PackagePlus },
+  { name: "Fournisseurs", href: "/admin/fournisseurs", icon: Truck }, // Ajouté
+  { name: "Approvisionnement", href: "/admin/restocking", icon: PackagePlus },
   { name: "Rapport Stock", href: "/admin/stock-reports", icon: FileSpreadsheet },
-  { name: "Touts les Rapport", href: "/admin/reports", icon: FileSpreadsheet },
+  { name: "Tous les Rapports", href: "/admin/reports", icon: FileSpreadsheet },
   { name: "Organizations", href: "/admin/organizations", icon: Building2 },
   { name: "Analyses", href: "/admin/analytics", icon: BarChart3 },
   { name: "Settings", href: "/admin/settings", icon: Settings },
-  
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -49,26 +50,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { user, isLoading, isAdmin, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
 
-  // Check if user is admin
   useEffect(() => {
     if (!isLoading && user && !isAdmin()) {
       router.push("/access-denied")
     }
   }, [user, isLoading, isAdmin, router])
 
-  // Show loading state
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">Chargement...</p>
         </div>
       </div>
     )
   }
 
-  // If not admin, return null (redirect will happen)
   if (!user || !isAdmin()) {
     return null
   }
@@ -78,7 +76,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="flex h-16 items-center justify-between px-6 border-b">
         <div className="flex items-center gap-2">
           <Store className="h-8 w-8 text-primary" />
-          <span className="text-xl font-bold text-foreground">POS Admin</span>
+          <span className="text-xl font-bold text-foreground">Gestion Stock</span>
         </div>
         {mobile && (
           <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)}>
@@ -111,7 +109,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </nav>
 
       <div className="border-t p-4 space-y-2">
-        {/* Theme Toggle */}
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 h-11"
@@ -120,20 +117,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {theme === "dark" ? (
             <>
               <Sun className="h-5 w-5" />
-              Light Mode
+              Mode clair
             </>
           ) : (
             <>
               <Moon className="h-5 w-5" />
-              Dark Mode
+              Mode sombre
             </>
           )}
         </Button>
 
-        {/* User Info */}
         <div className="px-3 py-2 rounded-lg bg-muted/50">
-          <p className="text-sm font-medium text-foreground">{user?.name}</p>
-          <p className="text-xs text-muted-foreground">{user?.email}</p>
+          <p className="text-sm font-medium text-foreground">{user?.nom || user?.name}</p>
+          <p className="text-xs text-muted-foreground">{user?.email || user?.post_nom}</p>
+          <p className="text-xs text-emerald-600 mt-1">Administrateur</p>
         </div>
 
         <Button
@@ -142,7 +139,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           onClick={() => router.push("/")}
         >
           <Store className="h-5 w-5" />
-          Back to POS
+          Retour au POS
         </Button>
 
         <Button
@@ -151,7 +148,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           onClick={logout}
         >
           <LogOut className="h-5 w-5" />
-          Logout
+          Déconnexion
         </Button>
       </div>
     </div>
@@ -159,23 +156,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Desktop Sidebar */}
       <div className="hidden lg:flex lg:flex-shrink-0">
         <div className="flex w-64 flex-col border-r bg-card">
           <Sidebar />
         </div>
       </div>
 
-      {/* Mobile Sidebar */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent side="left" className="p-0 w-64">
           <Sidebar mobile />
         </SheetContent>
       </Sheet>
 
-      {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Mobile Header */}
         <div className="flex h-16 items-center justify-between border-b bg-card px-4 lg:hidden">
           <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
             <SheetTrigger asChild>
@@ -186,18 +179,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </Sheet>
           <div className="flex items-center gap-2">
             <Store className="h-6 w-6 text-primary" />
-            <span className="font-bold text-foreground">POS Admin</span>
+            <span className="font-bold text-foreground">Gestion Stock</span>
           </div>
           <Button variant="ghost" size="icon" onClick={toggleTheme}>
-            {theme === "dark" ? (
-              <Sun className="h-5 w-5" />
-            ) : (
-              <Moon className="h-5 w-5" />
-            )}
+            {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
         </div>
 
-        {/* Page Content */}
         <main className="flex-1 overflow-auto bg-muted/30">
           <div className="p-4 lg:p-8">{children}</div>
         </main>
