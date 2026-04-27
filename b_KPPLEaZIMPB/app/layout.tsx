@@ -7,7 +7,6 @@ import { AuthProvider } from "./context/auth-context"
 import { ThemeProvider } from "./context/theme-context"
 import { SettingsProvider } from "./context/settings-context"
 import { Toaster } from "sonner"
-// import Header from "./components/header"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -30,7 +29,7 @@ export default function RootLayout({
             <SettingsProvider>
               <CartProvider>
                 <div className="min-h-screen flex flex-col">
-                  {/* <Header/> */}
+                  
                   <main className="flex-1">
                     {children}
                   </main>
