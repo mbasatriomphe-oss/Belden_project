@@ -20,7 +20,7 @@ export default function POSPage() {
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (!settings.quickActionsEnabled) return
+    if (!settings?.quickActionsEnabled) return
 
     // Check if user is typing in an input
     const target = e.target as HTMLElement
@@ -59,7 +59,7 @@ export default function POSPage() {
       clearCart()
       setSearchQuery("")
     }
-  }, [settings.quickActionsEnabled, clearCart, router])
+  }, [settings?.quickActionsEnabled, clearCart, router])
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown)
@@ -72,7 +72,7 @@ export default function POSPage() {
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">Chargement...</p>
         </div>
       </div>
     )

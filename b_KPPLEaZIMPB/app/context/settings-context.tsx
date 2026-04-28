@@ -1,19 +1,39 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect, ReactNode } from "react"
 
-const SettingsContext = createContext(undefined)
+interface Settings {
+  quickActionsEnabled: boolean;
+  clientPageEnabled: boolean;
+  soundEnabled: boolean;
+  autoLogout: number;
+  currency: string;
+  currencySymbol: string;
+  taxRate: number;
+}
 
-export function SettingsProvider({ children }) {
-  const [settings, setSettings] = useState({
-    quickActionsEnabled: true,
-    clientPageEnabled: true,
-    soundEnabled: true,
-    autoLogout: 30, // minutes
-    currency: "USD",
-    currencySymbol: "$",
-    taxRate: 10, // percentage
-  })
+interface SettingsContextType {
+  settings: Settings;
+  updateSetting: (key: keyof Settings, value: any) => void;
+  toggleQuickActions: () => void;
+  toggleClientPage: () => void;
+  toggleSound: () => void;
+}
+
+const defaultSettings: Settings = {
+  quickActionsEnabled: true,
+  clientPageEnabled: true,
+  soundEnabled: true,
+  autoLogout: 30,
+  currency: "USD",
+  currencySymbol: "$",
+  taxRate: 10,
+}
+
+const SettingsContext = createContext<SettingsContextType | undefined>(undefined)
+
+export function SettingsProvider({ children }: { children: ReactNode }) {
+  const [settings, setSettings] = useState<Settings>(defaultSettings)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -21,7 +41,8 @@ export function SettingsProvider({ children }) {
     const savedSettings = localStorage.getItem("pos_settings")
     if (savedSettings) {
       try {
-        setSettings((prev) => ({ ...prev, ...JSON.parse(savedSettings) }))
+        const parsed = JSON.parse(savedSettings)
+        setSettings((prev) => ({ ...prev, ...parsed }))
       } catch (error) {
         console.error("Failed to parse settings:", error)
       }
@@ -34,7 +55,7 @@ export function SettingsProvider({ children }) {
     }
   }, [settings, mounted])
 
-  const updateSetting = (key, value) => {
+  const updateSetting = (key: keyof Settings, value: any) => {
     setSettings((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -78,7 +99,7 @@ export function SettingsProvider({ children }) {
   )
 }
 
-export function useSettings() {
+export function useSettings(): SettingsContextType {
   const context = useContext(SettingsContext)
   if (context === undefined) {
     throw new Error("useSettings must be used within a SettingsProvider")

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuth } from "../context/auth-context"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,9 +22,10 @@ import {
   ShoppingCart,
   Users,
   Menu,
+  Search,
 } from "lucide-react"
 
-export default function Header() {
+export default function Header({ searchQuery = "", setSearchQuery }) {
   const pathname = usePathname()
   const { user, logout, isAdmin } = useAuth()
 
@@ -32,12 +34,41 @@ export default function Header() {
   }
 
   return (
-    <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+    <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
+          {/* Logo / Titre */}
+          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">GS</span>
+            </div>
+            <span className="font-semibold text-gray-900 dark:text-white hidden sm:inline">
+              Gestion Stock
+            </span>
+          </Link>
+          
+          {/* Barre de recherche */}
+          <div className="relative w-64 mx-4">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher un produit..."
+              className="pl-8 bg-muted/50"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery && setSearchQuery(e.target.value)}
+            />
+          </div>
           
           <nav className="hidden md:flex items-center gap-1">
-            
+            <Link href="/">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className={isActive('/') && !isActive('/clients') && !isActive('/produits') && !isActive('/commandes') ? 'bg-gray-100 dark:bg-gray-800' : ''}
+              >
+                <LayoutDashboard className="h-4 w-4 mr-2" />
+                Accueil
+              </Button>
+            </Link>
             <Link href="/clients">
               <Button 
                 variant="ghost" 

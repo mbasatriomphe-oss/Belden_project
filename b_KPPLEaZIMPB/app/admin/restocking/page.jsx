@@ -472,36 +472,37 @@ export default function RestockingPage() {
   }
 
   // Générer le rapport PDF des approvisionnements
-  const genererRapportPDF = async () => {
-    if (pdfLoading) return
-    try {
-      setPdfLoading(true)
-      toast.loading("Génération du rapport PDF...")
-      
-      await pdfService.genererRapportApprovisionnements({
-        titre: "Rapport d'Approvisionnement",
-        sousTitre: "Gestion des réapprovisionnements",
-        dateGeneration: new Date().toLocaleString('fr-FR'),
-        periode: "Toute la période",
-        statistiques: {
-          totalApprovisionnements: historyStats.totalApprovisionnements,
-          totalFournisseurs: historyStats.totalFournisseurs,
-          totalUnites: historyStats.totalUnites,
-          totalMontant: historyStats.totalMontant
-        },
-        approvisionnements: filteredHistory
-      })
-      
-      toast.dismiss()
-      toast.success("PDF généré avec succès")
-    } catch (error) {
-      toast.dismiss()
-      console.error("Erreur:", error)
-      toast.error("Erreur", { description: error.message || "Impossible de générer le PDF" })
-    } finally {
-      setPdfLoading(false)
-    }
+const genererRapportPDF = async () => {
+  if (pdfLoading) return
+  
+  setPdfLoading(true)
+  
+  const generatePromise = pdfService.genererRapportApprovisionnements({
+    titre: "Rapport d'Approvisionnement",
+    sousTitre: "Gestion des réapprovisionnements",
+    dateGeneration: new Date().toLocaleString('fr-FR'),
+    periode: "Toute la période",
+    statistiques: {
+      totalApprovisionnements: historyStats.totalApprovisionnements,
+      totalFournisseurs: historyStats.totalFournisseurs,
+      totalUnites: historyStats.totalUnites,
+      totalMontant: historyStats.totalMontant
+    },
+    approvisionnements: filteredHistory
+  })
+  
+  toast.promise(generatePromise, {
+    loading: "Génération du rapport PDF...",
+    success: "PDF généré avec succès",
+    error: (err) => `Erreur: ${err.message || "Impossible de générer le PDF"}`
+  })
+  
+  try {
+    await generatePromise
+  } finally {
+    setPdfLoading(false)
   }
+}
 
   // Générer le rapport complet des stocks
   const genererRapportComplet = async () => {
@@ -945,7 +946,6 @@ export default function RestockingPage() {
           </DialogHeader>
           {selectedApprovisionnement && (
             <div className="space-y-6">
-              {/* Contenu modal existant... */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/30 rounded-lg">
                 <div>
                   <p className="text-sm text-muted-foreground">N° Approvisionnement</p>
@@ -989,16 +989,23 @@ export default function RestockingPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {selectedApprovisionnement.detailapprovisionnements?.map((detail) => (
-                        <TableRow key={detail.id}>
-                          <TableCell className="font-medium">{detail.produit?.nom || "Produit"}</TableCell>
-                          <TableCell className="text-right">{detail.quantite}</TableCell>
-                          <TableCell className="text-right">{detail.prix_achat.toFixed(2)} $</TableCell>
-                          <TableCell className="text-right text-emerald-600 font-semibold">
-                            {(detail.quantite * detail.prix_achat).toLocaleString()} $
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {selectedApprovisionnement.detailapprovisionnements?.map((detail) => {
+                        // Conversion sécurisée des valeurs
+                        const quantite = Number(detail.quantite) || 0;
+                        const prixAchat = typeof detail.prix_achat === 'string' ? parseFloat(detail.prix_achat) : (Number(detail.prix_achat) || 0);
+                        const total = quantite * prixAchat;
+                        
+                        return (
+                          <TableRow key={detail.id}>
+                            <TableCell className="font-medium">{detail.produit?.nom || "Produit"}</TableCell>
+                            <TableCell className="text-right">{quantite}</TableCell>
+                            <TableCell className="text-right">{prixAchat.toFixed(2)} $</TableCell>
+                            <TableCell className="text-right text-emerald-600 font-semibold">
+                              {total.toLocaleString()} $
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                     <TableFooter>
                       <TableRow>

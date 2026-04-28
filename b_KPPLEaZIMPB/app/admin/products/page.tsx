@@ -248,9 +248,10 @@ export default function ProductsPage() {
     }
   }
 
-  const getStockStatus = (stock: number) => {
-    if (stock <= 0) return { label: "Rupture", variant: "destructive", icon: AlertTriangle }
-    if (stock <= 10) return { label: "Stock faible", variant: "warning", icon: AlertTriangle }
+  const getStockStatus = (stock: number | undefined) => {
+    const currentStock = stock || 0
+    if (currentStock <= 0) return { label: "Rupture", variant: "destructive", icon: AlertTriangle }
+    if (currentStock <= 10) return { label: "Stock faible", variant: "warning", icon: AlertTriangle }
     return { label: "En stock", variant: "success", icon: Package }
   }
 
@@ -454,7 +455,11 @@ export default function ProductsPage() {
             <TableBody>
               {produits.length > 0 ? (
                 produits.map((product) => {
-                  const stockStatus = getStockStatus(product.stock_actuel || 0)
+                  const currentStock = product.stock_actuel ?? 0
+                  const stockStatus = getStockStatus(currentStock)
+                  const marge = product.marge_brute ?? 0
+                  const prixVente = product.prix_vente_actuel ?? 0
+                  
                   return (
                     <TableRow key={product.id}>
                       <TableCell>
@@ -476,21 +481,21 @@ export default function ProductsPage() {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           <span className={`font-medium ${
-                            product.stock_actuel <= 10 ? "text-red-600" : "text-green-600"
+                            currentStock <= 10 ? "text-red-600" : "text-green-600"
                           }`}>
-                            {product.stock_actuel || 0}
+                            {currentStock}
                           </span>
-                          {product.stock_actuel <= 10 && product.stock_actuel > 0 && (
-                            <Progress value={(product.stock_actuel / 20) * 100} className="w-16 h-2" />
+                          {currentStock <= 10 && currentStock > 0 && (
+                            <Progress value={(currentStock / 20) * 100} className="w-16 h-2" />
                           )}
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {product.prix_vente_actuel?.toFixed(2) || 0} $
+                        {prixVente.toFixed(2)} $
                       </TableCell>
                       <TableCell className="text-right">
-                        <Badge variant={product.marge_brute && product.marge_brute > 30 ? "default" : "secondary"}>
-                          {product.marge_brute?.toFixed(0) || 0}%
+                        <Badge variant={marge > 30 ? "default" : "secondary"}>
+                          {marge.toFixed(0)}%
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -593,12 +598,12 @@ export default function ProductsPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-3 bg-muted rounded-lg">
                       <p className="text-sm text-muted-foreground">Stock actuel</p>
-                      <p className="text-2xl font-bold">{selectedProduct.stock_actuel || 0}</p>
+                      <p className="text-2xl font-bold">{selectedProduct.stock_actuel ?? 0}</p>
                     </div>
                     <div className="p-3 bg-muted rounded-lg">
                       <p className="text-sm text-muted-foreground">Statut</p>
-                      <Badge variant={selectedProduct.stock_actuel && selectedProduct.stock_actuel > 0 ? "default" : "destructive"}>
-                        {selectedProduct.stock_actuel && selectedProduct.stock_actuel > 0 ? "En stock" : "Rupture"}
+                      <Badge variant={(selectedProduct.stock_actuel ?? 0) > 0 ? "default" : "destructive"}>
+                        {(selectedProduct.stock_actuel ?? 0) > 0 ? "En stock" : "Rupture"}
                       </Badge>
                     </div>
                   </div>
@@ -607,20 +612,20 @@ export default function ProductsPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-3 bg-muted rounded-lg">
                       <p className="text-sm text-muted-foreground">Prix d'achat moyen</p>
-                      <p className="text-2xl font-bold">{selectedProduct.prix_achat_moyen?.toFixed(2) || 0} $</p>
+                      <p className="text-2xl font-bold">{selectedProduct.prix_achat_moyen?.toFixed(2) ?? 0} $</p>
                     </div>
                     <div className="p-3 bg-muted rounded-lg">
                       <p className="text-sm text-muted-foreground">Prix de vente</p>
-                      <p className="text-2xl font-bold text-green-600">{selectedProduct.prix_vente_actuel?.toFixed(2) || 0} $</p>
+                      <p className="text-2xl font-bold text-green-600">{selectedProduct.prix_vente_actuel?.toFixed(2) ?? 0} $</p>
                     </div>
                     <div className="p-3 bg-muted rounded-lg">
                       <p className="text-sm text-muted-foreground">Marge brute</p>
-                      <p className="text-xl font-bold">{selectedProduct.marge_brute?.toFixed(0) || 0}%</p>
+                      <p className="text-xl font-bold">{selectedProduct.marge_brute?.toFixed(0) ?? 0}%</p>
                     </div>
                     <div className="p-3 bg-muted rounded-lg">
                       <p className="text-sm text-muted-foreground">Bénéfice unitaire</p>
                       <p className="text-xl font-bold">
-                        {((selectedProduct.prix_vente_actuel || 0) - (selectedProduct.prix_achat_moyen || 0)).toFixed(2)} $
+                        {((selectedProduct.prix_vente_actuel ?? 0) - (selectedProduct.prix_achat_moyen ?? 0)).toFixed(2)} $
                       </p>
                     </div>
                   </div>
@@ -654,7 +659,7 @@ export default function ProductsPage() {
                 <div>
                   <h3 className="font-semibold">{selectedProduct.nom}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Stock actuel: {selectedProduct.stock_actuel || 0} {selectedProduct.unite?.nom}
+                    Stock actuel: {selectedProduct.stock_actuel ?? 0} {selectedProduct.unite?.nom}
                   </p>
                 </div>
               </div>

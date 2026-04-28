@@ -10,7 +10,7 @@ export interface Product {
   category: string
 }
 
-interface Discount {
+export interface Discount {
   id: string
   type: "percentage" | "fixed"
   value: number
@@ -18,7 +18,7 @@ interface Discount {
   minAmount?: number
 }
 
-interface Customer {
+export interface Customer {
   id: string
   name: string
   email: string
@@ -28,7 +28,7 @@ interface Customer {
   purchaseHistory: Transaction[]
 }
 
-interface Transaction {
+export interface Transaction {
   id: string
   customerId?: string
   items: CartItem[]
@@ -41,15 +41,16 @@ interface Transaction {
   receiptNumber: string
 }
 
-interface CartItem extends Product {
+export interface CartItem extends Product {
   quantity: number
 }
 
-interface CartContextType {
+export interface CartContextType {
   cart: CartItem[]
   addToCart: (product: Product) => void
   removeFromCart: (productId: number) => void
   updateQuantity: (productId: number, quantity: number) => void
+  updateItemPrice: (productId: number, newPrice: number) => void  // Nouvelle fonction
   clearCart: () => void
   cartTotal: number
   itemCount: number
@@ -78,6 +79,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
         console.error("Failed to parse cart from localStorage:", error)
       }
     }
+    
+    // Load customer from localStorage
+    const savedCustomer = localStorage.getItem("pos_customer")
+    if (savedCustomer) {
+      try {
+        setCustomer(JSON.parse(savedCustomer))
+      } catch (error) {
+        console.error("Failed to parse customer from localStorage:", error)
+      }
+    }
   }, [])
 
   // Save cart to localStorage whenever it changes
@@ -85,12 +96,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("cart", JSON.stringify(cart))
   }, [cart])
 
+  // Save customer to localStorage
+  useEffect(() => {
+    if (customer) {
+      localStorage.setItem("pos_customer", JSON.stringify(customer))
+    } else {
+      localStorage.removeItem("pos_customer")
+    }
+  }, [customer])
+
   const addToCart = (product: Product) => {
     setCart((prevCart) => {
       const existingItem = prevCart.find((item) => item.id === product.id)
 
       if (existingItem) {
-        return prevCart.map((item) => (item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item))
+        return prevCart.map((item) => 
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        )
       }
 
       return [...prevCart, { ...product, quantity: 1 }]
@@ -107,11 +129,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    setCart((prevCart) => prevCart.map((item) => (item.id === productId ? { ...item, quantity } : item)))
+    setCart((prevCart) => 
+      prevCart.map((item) => (item.id === productId ? { ...item, quantity } : item))
+    )
+  }
+
+  const updateItemPrice = (productId: number, newPrice: number) => {
+    if (newPrice <= 0) return
+    
+    setCart((prevCart) =>
+      prevCart.map((item) =>
+        item.id === productId ? { ...item, price: newPrice } : item
+      )
+    )
   }
 
   const clearCart = () => {
     setCart([])
+    removeDiscount()
   }
 
   const applyDiscount = (discount: Discount) => {
@@ -130,7 +165,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const discountAmount = appliedDiscount
     ? appliedDiscount.type === "percentage"
       ? cartTotal * (appliedDiscount.value / 100)
-      : appliedDiscount.value
+      : Math.min(appliedDiscount.value, cartTotal)
     : 0
 
   const itemCount = cart.reduce((count, item) => count + item.quantity, 0)
@@ -142,6 +177,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         addToCart,
         removeFromCart,
         updateQuantity,
+        updateItemPrice,
         clearCart,
         cartTotal,
         itemCount,
